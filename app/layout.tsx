@@ -70,7 +70,16 @@ export const metadata: Metadata = {
   },
 
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      {
+        url: "/favicon-light.ico",
+        media: "(prefers-color-scheme: light)",
+      },
+      {
+        url: "/favicon-dark.ico",
+        media: "(prefers-color-scheme: dark)",
+      },
+    ],
     shortcut: "/favicon.ico",
     apple: "/apple-touch-icon.png",
   },
