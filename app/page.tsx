@@ -1,9 +1,8 @@
-import { ThemeToggle } from '@/components/theme-toggle'
-
 const HomePage = () => {
   return (
-    <div><ThemeToggle /></div>
-  )
-}
+    <div>
+    </div>
+  );
+};
 
-export default HomePage
+export default HomePage;
