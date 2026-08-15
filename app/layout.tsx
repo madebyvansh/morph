@@ -1,26 +1,24 @@
 import type { Metadata } from "next";
-import { Inter, Space_Grotesk, Geist } from "next/font/google";
+import { IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { cn } from "@/lib/utils";
 
-const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
-
-const space = Space_Grotesk({
-  variable: "--font-space",
+const ibm = IBM_Plex_Mono({
+  variable: "--font-ibm",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
 });
 
-const inter = Inter({
-  variable: "--font-inter",
+const instrument = Instrument_Sans({
+  variable: "--font-instrument",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
   title: {
-    default: "Morph",
+    default: "Morph - Animated profiles for X",
     template: "%s | Morph",
   },
   description:
@@ -93,14 +91,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={cn(
-        "h-full",
-        "antialiased",
-        space.variable,
-        inter.variable,
-        "font-sans",
-        geist.variable,
-      )}
+      className={cn("h-full", "antialiased", instrument.variable, ibm.variable)}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
