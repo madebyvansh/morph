@@ -1,10 +1,10 @@
 import { MainLandingPage } from "@/components/landing/main";
-import { LandingNavbar } from "@/components/landing/navbar";
+import { DesktopLandingNavbar } from "@/components/landing/desktop-navbar";
 
 const LandingPage = () => {
   return (
-    <div className="w-full min-h-screen flex">
-      <LandingNavbar />
+    <div className="w-full min-h-screen flex flex-col lg:flex-row">
+      <DesktopLandingNavbar />
       <MainLandingPage />
     </div>
   );

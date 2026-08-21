@@ -96,9 +96,9 @@ export function ThemeToggle() {
         type="button"
         onClick={cycleTheme}
         aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
-        className="cursor-pointer"
+        className="cursor-pointer text-muted-foreground hover:text-foreground"
       >
-        {theme === "light" ? <Sun size={20} /> : <Moon size={20} />}
+        {theme === "light" ? <Sun size={18} /> : <Moon size={18} />}
       </button>
     </div>
   );
