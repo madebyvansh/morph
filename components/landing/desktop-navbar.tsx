@@ -28,32 +28,50 @@ export const DesktopLandingNavbar = () => {
   const [indicatorY, setIndicatorY] = useState(0);
 
   useEffect(() => {
-    const section = navLinks
-      .map(({ url }) => document.querySelector(url))
-      .filter((section): section is Element => section != null);
+    const handleScroll = () => {
+      const triggerPoint = 150;
 
-    const observer = new IntersectionObserver(
-      (e) => {
-        const visible = e
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (visible) setActive(`#${visible.target.id}`);
-      },
-      {
-        threshold: [0.2, 0.5, 0.8],
-        rootMargin: "-20% 0px -50% 0px",
-      },
-    );
-    section.forEach((section) => observer.observe(section));
-    return () => observer.disconnect();
+      console.log(
+        navLinks.map(({ url }) => {
+          const section = document.querySelector(url) as HTMLElement | null;
+
+          return {
+            url,
+            top: section?.getBoundingClientRect().top,
+          };
+        }),
+      );
+
+      let currentSection = navLinks[0].url;
+
+      for (const { url } of navLinks) {
+        const section = document.querySelector(url) as HTMLElement | null;
+
+        if (!section) continue;
+
+        if (section.getBoundingClientRect().top <= triggerPoint) {
+          currentSection = url;
+        }
+      }
+
+      console.log("SETTING:", currentSection);
+
+      setActive(currentSection);
+    };
+
+    handleScroll();
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
   }, []);
 
   useEffect(() => {
-    const activeIndex = navLinks.findIndex((item) => item.url === active);
-
-    const activeItem = navRef.current?.children[activeIndex + 1] as
-      | HTMLElement
-      | undefined;
+    const activeItem = navRef.current?.querySelector(
+      `[data-nav="${active}"]`,
+    ) as HTMLElement | null;
 
     if (!activeItem) return;
 
@@ -64,7 +82,7 @@ export const DesktopLandingNavbar = () => {
     <nav className="hidden lg:flex w-full max-w-96 flex-col items-end justify-between px-6 py-12 mt-2">
       <ul ref={navRef} className="fixed space-y-2">
         <span
-          className="pointer-events-none absolute -left-4 -top-3 flex h-5 w-2 items-center transition-transform duration-300 ease-out"
+          className="pointer-events-none absolute -left-4 top-[-0.65rem] flex h-5 w-2 items-center transition-transform duration-300 ease-out"
           style={{
             transform: `translateY(${indicatorY}px)`,
           }}
@@ -84,6 +102,7 @@ export const DesktopLandingNavbar = () => {
 
         {navLinks.map((item) => (
           <li
+            data-nav={item.url}
             key={item.url}
             className={`relative flex items-center text-sm transition-colors duration-200 ease-out ${
               active === item.url
