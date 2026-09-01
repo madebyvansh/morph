@@ -61,7 +61,7 @@ export const DesktopLandingNavbar = () => {
   }, [active]);
 
   return (
-    <nav className="hidden lg:flex w-full max-w-96 flex-col items-end justify-between px-6 py-18 mt-2">
+    <nav className="hidden lg:flex w-full max-w-96 flex-col items-end justify-between px-6 py-12 mt-2">
       <ul ref={navRef} className="fixed space-y-2">
         <span
           className="pointer-events-none absolute -left-4 -top-3 flex h-5 w-2 items-center transition-transform duration-300 ease-out"
@@ -85,10 +85,10 @@ export const DesktopLandingNavbar = () => {
         {navLinks.map((item) => (
           <li
             key={item.url}
-            className={`relative flex items-center transition-colors duration-200 ease-out ${
+            className={`relative flex items-center text-sm transition-colors duration-200 ease-out ${
               active === item.url
                 ? "text-foreground"
-                : "text-foreground/50 hover:text-foreground"
+                : "text-foreground/60 hover:text-foreground"
             }`}
           >
             <button
