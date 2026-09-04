@@ -29,39 +29,40 @@ export const DesktopLandingNavbar = () => {
 
   useEffect(() => {
     const handleScroll = () => {
-      const triggerPoint = 150;
-
-      console.log(
-        navLinks.map(({ url }) => {
-          const section = document.querySelector(url) as HTMLElement | null;
-
-          return {
-            url,
-            top: section?.getBoundingClientRect().top,
-          };
-        }),
-      );
+      const viewportCenter = window.innerHeight / 2;
 
       let currentSection = navLinks[0].url;
+      let closestDistance = Infinity;
 
       for (const { url } of navLinks) {
         const section = document.querySelector(url) as HTMLElement | null;
 
         if (!section) continue;
 
-        if (section.getBoundingClientRect().top <= triggerPoint) {
+        const rect = section.getBoundingClientRect();
+
+        // Ignore sections that are completely outside viewport
+        if (rect.bottom < 0 || rect.top > window.innerHeight) {
+          continue;
+        }
+
+        const sectionCenter = rect.top + rect.height / 2;
+        const distance = Math.abs(sectionCenter - viewportCenter);
+
+        if (distance < closestDistance) {
+          closestDistance = distance;
           currentSection = url;
         }
       }
-
-      console.log("SETTING:", currentSection);
 
       setActive(currentSection);
     };
 
     handleScroll();
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("scroll", handleScroll, {
+      passive: true,
+    });
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
@@ -116,8 +117,6 @@ export const DesktopLandingNavbar = () => {
                 document.querySelector(item.url)?.scrollIntoView({
                   behavior: "smooth",
                 });
-
-                setActive(item.url);
               }}
               className="cursor-pointer"
             >

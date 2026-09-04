@@ -31,7 +31,7 @@ const points = [
 
 export const WhatSection = () => {
   return (
-    <section id="what" className="flex flex-col lg:flex-row w-full gap-4">
+    <section id="what" className="flex mt-36 flex-col lg:flex-row w-full gap-4">
       <div className="flex lg:w-1/2 flex-col gap-10">
         <span className="flex items-center gap-2 text-xs uppercase text-foreground/50">
           <span className="size-1 bg-foreground/40" />
@@ -39,8 +39,9 @@ export const WhatSection = () => {
         </span>
 
         <h2 className="text-2xl font-semibold">
-          Why does my profile <br className="lg:hidden" /> picture <br className="hidden lg:block" />
-          have to <br className="lg:hidden" />  be a still image?
+          Why does my profile <br className="lg:hidden" /> picture{" "}
+          <br className="hidden lg:block" />
+          have to <br className="lg:hidden" /> be a still image?
         </h2>
       </div>
 
