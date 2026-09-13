@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Morph",
+  "version": "0.1.0",
+  "description": "Animated profiles for X.",
+  "permissions": [
+    "storage"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://x.com/*"],
+      "js": ["supabase-client.js", "content.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/*"],
+      "matches": ["https://x.com/*"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

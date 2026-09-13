@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Morph</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+
+  <body>
+    <main class="panel">
+      <header class="header">
+        <div>
+          <p class="eyebrow">MORPH</p>
+          <h1>Animated profile</h1>
+        </div>
+
+        <span class="status" id="status">Not set</span>
+      </header>
+
+      <label class="upload">
+        <input id="gifInput" type="file" accept="image/gif" />
+        <span>Choose GIF</span>
+        <small>Upload an animated profile picture</small>
+      </label>
+
+      <section class="preview-section">
+        <div class="section-heading">
+          <span>Animated preview</span>
+          <span id="fileName">No file selected</span>
+        </div>
+
+        <div class="preview animated-preview">
+          <span id="animatedEmpty">Your GIF will appear here</span>
+          <img id="gifPreview" alt="Animated GIF preview" hidden />
+        </div>
+      </section>
+
+      <section class="preview-section">
+        <div class="section-heading">
+          <span>Static fallback</span>
+          <span>First frame</span>
+        </div>
+
+        <div class="preview static-preview">
+          <span id="staticEmpty">Generated automatically</span>
+          <img id="staticPreview" alt="Static fallback preview" hidden />
+        </div>
+      </section>
+
+      <div class="actions">
+        <button id="removeButton" class="secondary" disabled>Remove</button>
+
+        <button id="saveButton" disabled>Save profile</button>
+      </div>
+
+      <p id="message" class="message"></p>
+    </main>
+
+    <script src="supabase-client.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
