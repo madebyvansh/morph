@@ -4,8 +4,24 @@ let processing = false;
 let currentPfp = null;
 let morphOverlay = null;
 let currentHandle = null;
+let debounceTimer = null;
 
 const overrideCache = new Map();
+
+const RESERVED_PATHS = new Set([
+  "home",
+  "explore",
+  "notifications",
+  "messages",
+  "i",
+  "settings",
+  "search",
+  "compose",
+  "bookmarks",
+  "lists",
+  "communities",
+  "jobs",
+]);
 
 async function getSavedGif() {
   const result = await chrome.storage.local.get("morphProfile");
@@ -18,7 +34,11 @@ function getViewedProfileHandle() {
     .split("/")[0]
     .toLowerCase();
 
-  return path || null;
+  if (!path || RESERVED_PATHS.has(path)) {
+    return null;
+  }
+
+  return path;
 }
 
 async function fetchOverrideForHandle(handle) {
@@ -83,6 +103,7 @@ function removeMorph() {
 
   if (currentPfp) {
     currentPfp.style.opacity = "";
+    currentPfp.style.pointerEvents = "";
     currentPfp = null;
   }
 
@@ -111,80 +132,94 @@ async function applyMorph() {
     return;
   }
 
-  const override = await fetchOverrideForHandle(viewedHandle);
-  const savedGif = override?.pfp_gif_url || null;
-
-  if (!savedGif) {
-    if (currentHandle === viewedHandle) return;
-
-    removeMorph();
-
-    console.log(`Morph: no GIF found for @${viewedHandle}`);
-    return;
-  }
-
+  // Set this before the first await to prevent duplicate requests.
   processing = true;
 
-  const container =
-    original.closest('[data-testid="UserAvatar-Container"]') ||
-    original.parentElement?.parentElement ||
-    original.parentElement;
+  try {
+    const override = await fetchOverrideForHandle(viewedHandle);
 
-  if (!container) {
-    processing = false;
-    return;
-  }
-
-  const gif = document.createElement("img");
-
-  gif.src = savedGif;
-  gif.alt = "";
-  gif.setAttribute("aria-hidden", "true");
-
-  Object.assign(gif.style, {
-    position: "absolute",
-    inset: "0",
-    width: "100%",
-    height: "100%",
-    display: "block",
-    objectFit: "cover",
-    borderRadius: "inherit",
-    pointerEvents: "none",
-    zIndex: "999999",
-  });
-
-  if (getComputedStyle(container).position === "static") {
-    container.style.position = "relative";
-  }
-
-  gif.onload = () => {
-    if (currentPfp && currentPfp !== original) {
-      currentPfp.style.opacity = "";
+    // The user may have navigated while Supabase was loading.
+    if (getViewedProfileHandle() !== viewedHandle) {
+      return;
     }
 
-    if (morphOverlay) {
-      morphOverlay.remove();
+    const savedGif = override?.pfp_gif_url || null;
+
+    if (!savedGif) {
+      removeMorph();
+      console.log(`Morph: no GIF found for @${viewedHandle}`);
+      return;
     }
 
-    original.style.opacity = "0";
-    container.appendChild(gif);
+    const container =
+      original.closest('[data-testid="UserAvatar-Container"]') ||
+      original.parentElement?.parentElement ||
+      original.parentElement;
 
-    morphOverlay = gif;
-    currentPfp = original;
-    currentHandle = viewedHandle;
+    if (!container) return;
+
+    const gif = document.createElement("img");
+
+    gif.src = savedGif;
+    gif.alt = "";
+    gif.setAttribute("aria-hidden", "true");
+
+    Object.assign(gif.style, {
+      position: "absolute",
+      inset: "0",
+      width: "100%",
+      height: "100%",
+      display: "block",
+      objectFit: "cover",
+      borderRadius: "inherit",
+      pointerEvents: "none",
+      zIndex: "999999",
+    });
+
+    if (getComputedStyle(container).position === "static") {
+      container.style.position = "relative";
+    }
+
+    gif.onload = () => {
+      if (getViewedProfileHandle() !== viewedHandle) {
+        return;
+      }
+
+      if (currentPfp && currentPfp !== original) {
+        currentPfp.style.opacity = "";
+        currentPfp.style.pointerEvents = "";
+      }
+
+      if (morphOverlay) {
+        morphOverlay.remove();
+      }
+
+      original.style.opacity = "0";
+      original.style.pointerEvents = "none";
+
+      container.appendChild(gif);
+
+      morphOverlay = gif;
+      currentPfp = original;
+      currentHandle = viewedHandle;
+
+      console.log(`Morph: GIF applied for @${viewedHandle}`);
+    };
+
+    gif.onerror = () => {
+      console.error("Morph: GIF failed to load");
+    };
+  } finally {
     processing = false;
-
-    console.log(`Morph: GIF applied for @${viewedHandle}`);
-  };
-
-  gif.onerror = () => {
-    processing = false;
-    console.error("Morph: GIF failed to load");
-  };
+  }
 }
 
 const observer = new MutationObserver(() => {
-  applyMorph();
+  clearTimeout(debounceTimer);
+
+  debounceTimer = setTimeout(() => {
+    applyMorph();
+  }, 150);
 });
 
 observer.observe(document.body, {
