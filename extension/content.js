@@ -28,6 +28,11 @@ async function getSavedGif() {
   return result.morphProfile?.gif || null;
 }
 
+async function getSavedStaticFrame() {
+  const result = await chrome.storage.local.get("morphProfile");
+  return result.morphProfile?.staticFrame || null;
+}
+
 function getViewedProfileHandle() {
   const path = window.location.pathname
     .replace(/^\/+|\/+$/g, "")
@@ -48,6 +53,8 @@ async function fetchOverrideForHandle(handle) {
     return overrideCache.get(normalizedHandle);
   }
 
+  console.log("Morph: checking Supabase for:", normalizedHandle);
+
   const { data, error } = await window.supabase
     .from("pfp_overrides")
     .select("pfp_gif_url")
@@ -55,9 +62,12 @@ async function fetchOverrideForHandle(handle) {
     .maybeSingle();
 
   if (error) {
-    console.error("Morph: Supabase lookup failed", error);
+    console.error("Morph: Supabase lookup failed:", normalizedHandle, error);
     return null;
   }
+
+  console.log("Morph: Supabase result:", normalizedHandle, data);
+  console.log("Morph override:", data);
 
   overrideCache.set(normalizedHandle, data);
 
@@ -66,9 +76,7 @@ async function fetchOverrideForHandle(handle) {
 
 function findPfp() {
   const images = [
-    ...document.querySelectorAll(
-      'img[alt="Opens profile photo"]'
-    ),
+    ...document.querySelectorAll('img[alt="Opens profile photo"]'),
   ];
 
   return (
@@ -87,12 +95,144 @@ function findPfp() {
         const aRect = a.getBoundingClientRect();
         const bRect = b.getBoundingClientRect();
 
-        return (
-          bRect.width * bRect.height -
-          aRect.width * aRect.height
-        );
+        return bRect.width * bRect.height - aRect.width * aRect.height;
       })[0] || null
   );
+}
+
+function getHandleFromAvatar(img) {
+  const link = img.closest('a[href^="/"]');
+
+  if (!link) return null;
+
+  const href = link.getAttribute("href");
+
+  if (!href) return null;
+
+  const handle = href
+    .replace(/^\/+/, "")
+    .split("/")[0]
+    .split("?")[0]
+    .toLowerCase();
+
+  if (!handle || RESERVED_PATHS.has(handle)) {
+    return null;
+  }
+
+  return handle;
+}
+
+function findTimelineAvatars() {
+  return [...document.querySelectorAll("img")]
+    .map((img) => {
+      const rect = img.getBoundingClientRect();
+      const link = img.closest('a[href^="/"]');
+      const href = link?.getAttribute("href");
+
+      const handle = href
+        ?.replace(/^\/+/, "")
+        .split("/")[0]
+        .split("?")[0]
+        .toLowerCase();
+
+      return { img, handle, rect };
+    })
+    .filter(({ img, handle, rect }) => {
+      return (
+        handle &&
+        !RESERVED_PATHS.has(handle) &&
+        rect.width >= 24 &&
+        rect.width <= 80 &&
+        rect.height >= 24 &&
+        rect.height <= 80 &&
+        img.src.includes("pbs.twimg.com/profile_images")
+      );
+    });
+}
+
+function findBottomLeftAvatar() {
+  const button = document.querySelector(
+    '[data-testid="SideNav_AccountSwitcher_Button"]',
+  );
+
+  if (!button) return null;
+
+  const img = button.querySelector("img");
+
+  if (!img) return null;
+
+  return img;
+}
+
+const timelineOverlays = new WeakMap();
+
+async function applyTimelineMorph() {
+  const avatars = findTimelineAvatars();
+
+  console.log(
+    "Morph: timeline avatars found:",
+    avatars.map(({ handle, img }) => ({
+      handle,
+      src: img.src,
+    })),
+  );
+
+  const staticFrame = await getSavedStaticFrame();
+
+  if (!staticFrame) {
+    console.log("Morph: no static frame available");
+    return;
+  }
+
+  for (const { img, handle } of avatars) {
+    if (timelineOverlays.has(img)) {
+      continue;
+    }
+    const override = await fetchOverrideForHandle(handle);
+    const gifUrl = override?.pfp_gif_url;
+
+    if (!gifUrl) {
+      continue;
+    }
+
+    const container =
+      img.closest('[data-testid="UserAvatar-Container"]') ||
+      img.parentElement?.parentElement ||
+      img.parentElement;
+
+    if (!container) continue;
+
+    if (getComputedStyle(container).position === "static") {
+      container.style.position = "relative";
+    }
+
+    const staticImg = document.createElement("img");
+
+    staticImg.src = staticFrame;
+    staticImg.alt = "";
+    staticImg.setAttribute("aria-hidden", "true");
+
+    Object.assign(staticImg.style, {
+      position: "absolute",
+      inset: "0",
+      width: "100%",
+      height: "100%",
+      objectFit: "cover",
+      borderRadius: "inherit",
+      pointerEvents: "none",
+      zIndex: "999999",
+    });
+
+    staticImg.onload = () => {
+      img.style.opacity = "0";
+      img.style.pointerEvents = "none";
+
+      container.appendChild(staticImg);
+      timelineOverlays.set(img, staticImg);
+
+      console.log(`Morph: static timeline frame applied for @${handle}`);
+    };
+  }
 }
 
 function removeMorph() {
@@ -214,11 +354,151 @@ async function applyMorph() {
   }
 }
 
+function findExpandedPfp() {
+  return document.querySelector(
+    '[data-testid^="UserAvatar-Container-"] img[src*="pbs.twimg.com/profile_images"]',
+  );
+}
+
+async function applyExpandedMorph() {
+  const expandedPfp = findExpandedPfp();
+
+  if (!expandedPfp) return;
+
+  const avatarContainer = expandedPfp.closest(
+    '[data-testid^="UserAvatar-Container-"]',
+  );
+
+  const testId = avatarContainer?.getAttribute("data-testid");
+
+  const handle = testId?.replace("UserAvatar-Container-", "").toLowerCase();
+
+  if (!handle) return;
+
+  const override = await fetchOverrideForHandle(handle);
+  const gifUrl = override?.pfp_gif_url;
+
+  if (!gifUrl) return;
+
+  if (expandedPfp.dataset.morphExpanded === "true") {
+    return;
+  }
+
+  const container = expandedPfp.parentElement;
+
+  if (!container) return;
+
+  if (getComputedStyle(container).position === "static") {
+    container.style.position = "relative";
+  }
+
+  const gifImg = document.createElement("img");
+
+  gifImg.src = gifUrl;
+  gifImg.alt = "";
+  gifImg.setAttribute("aria-hidden", "true");
+
+  Object.assign(gifImg.style, {
+    position: "absolute",
+    inset: "0",
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    borderRadius: "50%",
+    pointerEvents: "none",
+    zIndex: "999999",
+  });
+
+  gifImg.onload = () => {
+    expandedPfp.style.opacity = "0";
+    expandedPfp.style.pointerEvents = "none";
+
+    container.appendChild(gifImg);
+    expandedPfp.dataset.morphExpanded = "true";
+
+    console.log(`Morph: expanded GIF applied for @${handle}`);
+  };
+}
+
+let bottomLeftOverlay = null;
+let bottomLeftOriginal = null;
+
+function findBottomLeftAvatar() {
+  const button = document.querySelector(
+    '[data-testid="SideNav_AccountSwitcher_Button"]',
+  );
+
+  if (!button) return null;
+
+  return button.querySelector("img");
+}
+
+async function applyBottomLeftMorph() {
+  const img = findBottomLeftAvatar();
+
+  if (!img) return;
+
+  const avatarContainer = img.closest('[data-testid^="UserAvatar-Container-"]');
+
+  const testId = avatarContainer?.getAttribute("data-testid");
+
+  const handle = testId?.replace("UserAvatar-Container-", "").toLowerCase();
+
+  if (!handle) return;
+
+  if (bottomLeftOverlay && bottomLeftOriginal === img) {
+    return;
+  }
+
+  const staticFrame = await getSavedStaticFrame();
+
+  if (!staticFrame) return;
+
+  const container = avatarContainer || img.parentElement;
+
+  if (!container) return;
+
+  if (getComputedStyle(container).position === "static") {
+    container.style.position = "relative";
+  }
+
+  const staticImg = document.createElement("img");
+
+  staticImg.src = staticFrame;
+  staticImg.alt = "";
+  staticImg.setAttribute("aria-hidden", "true");
+
+  Object.assign(staticImg.style, {
+    position: "absolute",
+    inset: "0",
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    borderRadius: "50%",
+    pointerEvents: "none",
+    zIndex: "999999",
+  });
+
+  staticImg.onload = () => {
+    img.style.opacity = "0";
+    img.style.pointerEvents = "none";
+
+    container.appendChild(staticImg);
+
+    bottomLeftOverlay = staticImg;
+    bottomLeftOriginal = img;
+
+    console.log(`Morph: static bottom-left frame applied for @${handle}`);
+  };
+}
 const observer = new MutationObserver(() => {
   clearTimeout(debounceTimer);
 
   debounceTimer = setTimeout(() => {
     applyMorph();
+    applyTimelineMorph();
+    applyExpandedMorph();
+    applyBottomLeftMorph();
   }, 150);
 });
 
@@ -228,3 +508,6 @@ observer.observe(document.body, {
 });
 
 applyMorph();
+applyTimelineMorph();
+applyExpandedMorph();
+applyBottomLeftMorph();

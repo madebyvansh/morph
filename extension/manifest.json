@@ -1,11 +1,22 @@
 {
   "manifest_version": 3,
   "name": "Morph",
-  "version": "0.1.0",
-  "description": "Animated profiles for X.",
+  "version": "1.0.0",
+  "description": "Animated profile pictures for X",
   "permissions": [
-    "storage"
+    "storage",
+    "identity"
   ],
+  "host_permissions": [
+    "https://x.com/*",
+    "https://*.supabase.co/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
   "content_scripts": [
     {
       "matches": ["https://x.com/*"],
@@ -14,11 +25,8 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["assets/*"],
+      "resources": ["supabase-client.js"],
       "matches": ["https://x.com/*"]
     }
-  ],
-  "action": {
-    "default_popup": "popup.html"
-  }
+  ]
 }
