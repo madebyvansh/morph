@@ -74,6 +74,23 @@ async function fetchOverrideForHandle(handle) {
   return data;
 }
 
+async function fetchBannerOverrideForHandle(handle) {
+  const normalizedHandle = handle.replace("@", "").trim().toLowerCase();
+
+  const { data, error } = await window.supabase
+    .from("pfp_overrides")
+    .select("banner_gif_url")
+    .eq("handle", normalizedHandle)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Morph banner lookup failed:", error);
+    return null;
+  }
+
+  return data?.banner_gif_url || null;
+}
+
 function findPfp() {
   const images = [
     ...document.querySelectorAll('img[alt="Opens profile photo"]'),
@@ -148,20 +165,6 @@ function findTimelineAvatars() {
         img.src.includes("pbs.twimg.com/profile_images")
       );
     });
-}
-
-function findBottomLeftAvatar() {
-  const button = document.querySelector(
-    '[data-testid="SideNav_AccountSwitcher_Button"]',
-  );
-
-  if (!button) return null;
-
-  const img = button.querySelector("img");
-
-  if (!img) return null;
-
-  return img;
 }
 
 const timelineOverlays = new WeakMap();
@@ -540,7 +543,103 @@ async function applyBottomLeftMorph() {
   staticImg.onerror = () => {
     console.error("Morph: bottom-left static frame failed to load");
   };
-} 
+}
+
+let profileBannerOverlay = null;
+let profileBannerOriginal = null;
+let profileBannerHandle = null;
+
+function removeProfileBannerMorph() {
+  if (profileBannerOverlay) {
+    profileBannerOverlay.remove();
+    profileBannerOverlay = null;
+  }
+
+  if (profileBannerOriginal) {
+    profileBannerOriginal.style.visibility = "";
+    profileBannerOriginal = null;
+  }
+
+  profileBannerHandle = null;
+}
+
+async function applyProfileBannerMorph(handle) {
+  if (!handle) {
+    removeProfileBannerMorph();
+    return;
+  }
+
+  const bannerImg = document.querySelector('img[src*="profile_banners"]');
+
+  if (!bannerImg) return;
+
+  const bannerGifUrl = await fetchBannerOverrideForHandle(handle);
+
+  if (getViewedProfileHandle() !== handle) {
+    return;
+  }
+
+  if (!bannerGifUrl) {
+    removeProfileBannerMorph();
+    return;
+  }
+
+  if (
+    profileBannerOverlay &&
+    profileBannerOriginal === bannerImg &&
+    profileBannerHandle === handle
+  ) {
+    return;
+  }
+
+  removeProfileBannerMorph();
+
+  const container = bannerImg.parentElement;
+
+  if (!container) return;
+
+  if (getComputedStyle(container).position === "static") {
+    container.style.position = "relative";
+  }
+
+  const overlay = document.createElement("img");
+
+  overlay.src = bannerGifUrl;
+  overlay.alt = "";
+  overlay.draggable = false;
+  overlay.setAttribute("aria-hidden", "true");
+
+  Object.assign(overlay.style, {
+    position: "absolute",
+    inset: "0",
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    pointerEvents: "none",
+    zIndex: "2",
+  });
+
+  overlay.onload = () => {
+    if (getViewedProfileHandle() !== handle) {
+      overlay.remove();
+      return;
+    }
+
+    bannerImg.style.visibility = "hidden";
+    container.appendChild(overlay);
+
+    profileBannerOverlay = overlay;
+    profileBannerOriginal = bannerImg;
+    profileBannerHandle = handle;
+
+    console.log(`Morph: banner applied for @${handle}`);
+  };
+
+  overlay.onerror = () => {
+    console.error("Morph: banner GIF failed to load");
+    overlay.remove();
+  };
+}
 
 const observer = new MutationObserver(() => {
   clearTimeout(debounceTimer);
@@ -550,7 +649,8 @@ const observer = new MutationObserver(() => {
     applyTimelineMorph();
     applyExpandedMorph();
     applyBottomLeftMorph();
-  }, 150);
+    applyProfileBannerMorph(getViewedProfileHandle());
+  });
 });
 
 observer.observe(document.body, {
@@ -562,3 +662,4 @@ applyMorph();
 applyTimelineMorph();
 applyExpandedMorph();
 applyBottomLeftMorph();
+applyProfileBannerMorph(getViewedProfileHandle());
