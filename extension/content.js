@@ -47,7 +47,7 @@ function getViewedProfileHandle() {
 }
 
 async function fetchOverrideForHandle(handle) {
-  const normalizedHandle = handle.toLowerCase();
+  const normalizedHandle = handle.replace("@", "").trim().toLowerCase();
 
   if (overrideCache.has(normalizedHandle)) {
     return overrideCache.get(normalizedHandle);
@@ -57,7 +57,7 @@ async function fetchOverrideForHandle(handle) {
 
   const { data, error } = await window.supabase
     .from("pfp_overrides")
-    .select("pfp_gif_url")
+    .select("pfp_gif_url, static_frame_url")
     .eq("handle", normalizedHandle)
     .maybeSingle();
 
@@ -66,11 +66,7 @@ async function fetchOverrideForHandle(handle) {
     return null;
   }
 
-  console.log("Morph: Supabase result:", normalizedHandle, data);
-  console.log("Morph override:", data);
-
   overrideCache.set(normalizedHandle, data);
-
   return data;
 }
 
@@ -180,21 +176,16 @@ async function applyTimelineMorph() {
     })),
   );
 
-  const staticFrame = await getSavedStaticFrame();
-
-  if (!staticFrame) {
-    console.log("Morph: no static frame available");
-    return;
-  }
-
   for (const { img, handle } of avatars) {
     if (timelineOverlays.has(img)) {
       continue;
     }
+
     const override = await fetchOverrideForHandle(handle);
     const gifUrl = override?.pfp_gif_url;
+    const staticFrame = override?.static_frame_url;
 
-    if (!gifUrl) {
+    if (!gifUrl || !staticFrame) {
       continue;
     }
 
@@ -233,7 +224,11 @@ async function applyTimelineMorph() {
       container.appendChild(staticImg);
       timelineOverlays.set(img, staticImg);
 
-      console.log(`Morph: static timeline frame applied for @${handle}`);
+      console.log(`Morph: own static timeline frame applied for @${handle}`);
+    };
+
+    staticImg.onerror = () => {
+      console.error(`Morph: static frame failed for @${handle}`);
     };
   }
 }
@@ -358,9 +353,18 @@ async function applyMorph() {
 }
 
 function findExpandedPfp() {
-  return document.querySelector(
-    '[data-testid^="UserAvatar-Container-"] img[src*="pbs.twimg.com/profile_images"]',
-  );
+  return [...document.querySelectorAll(
+    'img[alt="Image"][src*="pbs.twimg.com/profile_images"]'
+  )].find((img) => {
+    const rect = img.getBoundingClientRect();
+
+    return (
+      rect.width >= 200 &&
+      rect.height >= 200 &&
+      rect.width > 0 &&
+      rect.height > 0
+    );
+  }) || null;
 }
 
 async function applyExpandedMorph() {
@@ -374,14 +378,27 @@ async function applyExpandedMorph() {
 
   const testId = avatarContainer?.getAttribute("data-testid");
 
-  const handle = testId?.replace("UserAvatar-Container-", "").toLowerCase();
+  let handle = testId
+    ?.replace("UserAvatar-Container-", "")
+    .toLowerCase();
 
-  if (!handle) return;
+  // Fallback: get the handle from the currently viewed profile URL
+  if (!handle || RESERVED_PATHS.has(handle)) {
+    handle = getViewedProfileHandle();
+  }
+
+  if (!handle) {
+    console.log("Morph: could not detect expanded profile handle");
+    return;
+  }
 
   const override = await fetchOverrideForHandle(handle);
   const gifUrl = override?.pfp_gif_url;
 
-  if (!gifUrl) return;
+  if (!gifUrl) {
+    console.log(`Morph: no expanded GIF found for @${handle}`);
+    return;
+  }
 
   if (expandedPfp.dataset.morphExpanded === "true") {
     return;
@@ -420,6 +437,10 @@ async function applyExpandedMorph() {
     expandedPfp.dataset.morphExpanded = "true";
 
     console.log(`Morph: expanded GIF applied for @${handle}`);
+  };
+
+  gifImg.onerror = () => {
+    console.error(`Morph: expanded GIF failed for @${handle}`);
   };
 }
 

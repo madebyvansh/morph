@@ -25,7 +25,8 @@ const UPLOAD_GIF_URL =
   "https://umluziyrrucfjrdmveag.supabase.co/functions/v1/upload-gif";
 
 function updateSaveButton() {
-  saveButton.disabled = !selectedGif && !selectedBannerGif;
+  saveButton.disabled =
+    !selectedGif && !selectedBannerGif && !selectedStaticFrame;
 }
 
 // Profile GIF selection
@@ -128,6 +129,9 @@ saveButton.addEventListener("click", async () => {
         handle: morphXUser.username,
         gifDataUrl,
         bannerGifDataUrl,
+        staticFrameDataUrl: selectedStaticFrame
+          ? await fileToDataUrl(selectedStaticFrame)
+          : null,
       }),
     });
 
