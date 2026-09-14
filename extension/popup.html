@@ -25,6 +25,23 @@
         <span>Choose GIF</span>
         <small>Upload an animated profile picture</small>
       </label>
+      <label class="upload">
+        <input id="bannerGifInput" type="file" accept="image/gif" />
+        <span>Choose Banner GIF</span>
+        <small>Upload an animated profile banner</small>
+      </label>
+
+      <section class="preview-section">
+        <div class="section-heading">
+          <span>Banner preview</span>
+          <span id="bannerFileName">No file selected</span>
+        </div>
+
+        <div class="preview banner-preview">
+          <span id="bannerEmpty">Your banner GIF will appear here</span>
+          <img id="bannerPreview" alt="Banner GIF preview" hidden />
+        </div>
+      </section>
 
       <section class="preview-section">
         <div class="section-heading">

@@ -422,31 +422,71 @@ async function applyExpandedMorph() {
 
 let bottomLeftOverlay = null;
 let bottomLeftOriginal = null;
+let bottomLeftHandle = null;
 
 function findBottomLeftAvatar() {
-  const button = document.querySelector(
-    '[data-testid="SideNav_AccountSwitcher_Button"]',
+  return document.querySelector(
+    '[data-testid="SideNav_AccountSwitcher_Button"] img',
   );
-
-  if (!button) return null;
-
-  return button.querySelector("img");
 }
 
-async function applyBottomLeftMorph() {
+function getBottomLeftHandle() {
   const img = findBottomLeftAvatar();
 
-  if (!img) return;
+  if (!img) return null;
 
   const avatarContainer = img.closest('[data-testid^="UserAvatar-Container-"]');
 
   const testId = avatarContainer?.getAttribute("data-testid");
 
-  const handle = testId?.replace("UserAvatar-Container-", "").toLowerCase();
+  if (!testId) return null;
 
-  if (!handle) return;
+  return testId.replace("UserAvatar-Container-", "").toLowerCase();
+}
 
-  if (bottomLeftOverlay && bottomLeftOriginal === img) {
+function removeBottomLeftMorph() {
+  if (bottomLeftOverlay) {
+    bottomLeftOverlay.remove();
+    bottomLeftOverlay = null;
+  }
+
+  if (bottomLeftOriginal) {
+    bottomLeftOriginal.style.opacity = "";
+    bottomLeftOriginal.style.pointerEvents = "";
+    bottomLeftOriginal = null;
+  }
+
+  bottomLeftHandle = null;
+}
+
+async function applyBottomLeftMorph() {
+  const img = findBottomLeftAvatar();
+  const handle = getBottomLeftHandle();
+
+  if (!img || !handle) {
+    removeBottomLeftMorph();
+    return;
+  }
+
+  // Account has not changed.
+  if (
+    bottomLeftOverlay &&
+    bottomLeftOriginal === img &&
+    bottomLeftHandle === handle
+  ) {
+    return;
+  }
+
+  // Remove the previous account's overlay first.
+  removeBottomLeftMorph();
+
+  // Check whether THIS account has a Morph GIF.
+  const override = await fetchOverrideForHandle(handle);
+  const gifUrl = override?.pfp_gif_url;
+
+  // No Morph GIF for this account: show the original X avatar.
+  if (!gifUrl) {
+    console.log(`Morph: no bottom-left GIF for @${handle}`);
     return;
   }
 
@@ -454,7 +494,7 @@ async function applyBottomLeftMorph() {
 
   if (!staticFrame) return;
 
-  const container = avatarContainer || img.parentElement;
+  const container = img.parentElement;
 
   if (!container) return;
 
@@ -480,6 +520,11 @@ async function applyBottomLeftMorph() {
   });
 
   staticImg.onload = () => {
+    // Prevent an old account's image from being applied after switching.
+    if (getBottomLeftHandle() !== handle) {
+      return;
+    }
+
     img.style.opacity = "0";
     img.style.pointerEvents = "none";
 
@@ -487,10 +532,16 @@ async function applyBottomLeftMorph() {
 
     bottomLeftOverlay = staticImg;
     bottomLeftOriginal = img;
+    bottomLeftHandle = handle;
 
-    console.log(`Morph: static bottom-left frame applied for @${handle}`);
+    console.log(`Morph: bottom-left static frame applied for @${handle}`);
   };
-}
+
+  staticImg.onerror = () => {
+    console.error("Morph: bottom-left static frame failed to load");
+  };
+} 
+
 const observer = new MutationObserver(() => {
   clearTimeout(debounceTimer);
 
