@@ -353,18 +353,22 @@ async function applyMorph() {
 }
 
 function findExpandedPfp() {
-  return [...document.querySelectorAll(
-    'img[alt="Image"][src*="pbs.twimg.com/profile_images"]'
-  )].find((img) => {
-    const rect = img.getBoundingClientRect();
+  return (
+    [
+      ...document.querySelectorAll(
+        'img[alt="Image"][src*="pbs.twimg.com/profile_images"]',
+      ),
+    ].find((img) => {
+      const rect = img.getBoundingClientRect();
 
-    return (
-      rect.width >= 200 &&
-      rect.height >= 200 &&
-      rect.width > 0 &&
-      rect.height > 0
-    );
-  }) || null;
+      return (
+        rect.width >= 200 &&
+        rect.height >= 200 &&
+        rect.width > 0 &&
+        rect.height > 0
+      );
+    }) || null
+  );
 }
 
 async function applyExpandedMorph() {
@@ -378,9 +382,7 @@ async function applyExpandedMorph() {
 
   const testId = avatarContainer?.getAttribute("data-testid");
 
-  let handle = testId
-    ?.replace("UserAvatar-Container-", "")
-    .toLowerCase();
+  let handle = testId?.replace("UserAvatar-Container-", "").toLowerCase();
 
   // Fallback: get the handle from the currently viewed profile URL
   if (!handle || RESERVED_PATHS.has(handle)) {
@@ -662,11 +664,97 @@ async function applyProfileBannerMorph(handle) {
   };
 }
 
+function findSearchAvatars() {
+  return [
+    ...document.querySelectorAll('img[src*="pbs.twimg.com/profile_images"]'),
+  ]
+    .map((img) => {
+      const container =
+        img.closest('[data-testid="typeaheadResult"]') ||
+        img.closest('[role="option"]') ||
+        img.parentElement?.parentElement?.parentElement;
+
+      const text = container?.innerText || "";
+
+      const handleMatch = text.match(/@([A-Za-z0-9_]{1,15})/);
+
+      return {
+        img,
+        handle: handleMatch?.[1]?.toLowerCase() || null,
+      };
+    })
+    .filter(({ img, handle }) => {
+      const rect = img.getBoundingClientRect();
+
+      return (
+        handle &&
+        !RESERVED_PATHS.has(handle) &&
+        rect.width > 0 &&
+        rect.height > 0
+      );
+    });
+}
+
+async function applySearchMorph() {
+  const avatars = findSearchAvatars();
+
+  for (const { img, handle } of avatars) {
+    if (img.dataset.morphSearchApplied === "true") {
+      continue;
+    }
+
+    const override = await fetchOverrideForHandle(handle);
+
+    const gifUrl = override?.pfp_gif_url;
+    const staticFrame = override?.static_frame_url;
+
+    if (!gifUrl || !staticFrame) {
+      continue;
+    }
+
+    const container = img.parentElement;
+
+    if (!container) continue;
+
+    if (getComputedStyle(container).position === "static") {
+      container.style.position = "relative";
+    }
+
+    const staticImg = document.createElement("img");
+
+    staticImg.src = staticFrame;
+    staticImg.alt = "";
+    staticImg.setAttribute("aria-hidden", "true");
+
+    Object.assign(staticImg.style, {
+      position: "absolute",
+      inset: "0",
+      width: "100%",
+      height: "100%",
+      objectFit: "cover",
+      borderRadius: "50%",
+      pointerEvents: "none",
+      zIndex: "999999",
+    });
+
+    staticImg.onload = () => {
+      img.style.opacity = "0";
+      img.style.pointerEvents = "none";
+
+      container.appendChild(staticImg);
+      img.dataset.morphSearchApplied = "true";
+
+      console.log(`Morph: search static frame applied for @${handle}`);
+    };
+  }
+}
+
 const observer = new MutationObserver(() => {
   clearTimeout(debounceTimer);
 
   debounceTimer = setTimeout(() => {
     applyMorph();
+    applySearchMorph();
     applyTimelineMorph();
     applyExpandedMorph();
     applyBottomLeftMorph();
@@ -680,6 +768,7 @@ observer.observe(document.body, {
 });
 
 applyMorph();
+applySearchMorph();
 applyTimelineMorph();
 applyExpandedMorph();
 applyBottomLeftMorph();
