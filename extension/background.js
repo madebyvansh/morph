@@ -91,10 +91,35 @@ async function handleOAuthCallback(callbackUrl) {
     }),
   });
 
-  const data = await response.json();
+  const responseText = await response.text();
+
+  let data;
+
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    data = { raw: responseText };
+  }
 
   if (!response.ok) {
-    throw new Error(data.error || "OAuth token exchange failed");
+    console.error(
+      "Morph: OAuth callback response:",
+      JSON.stringify(
+        {
+          status: response.status,
+          body: data,
+          redirectUri: REDIRECT_URI,
+        },
+        null,
+        2,
+      ),
+    );
+
+    throw new Error(
+      data.error ||
+        data.message ||
+        `OAuth token exchange failed: ${response.status}`,
+    );
   }
 
   await chrome.storage.local.set({
@@ -115,3 +140,5 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
   }
 });
+
+console.log("Morph OAuth redirect URI:", REDIRECT_URI);

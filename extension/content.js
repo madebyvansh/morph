@@ -516,9 +516,11 @@ async function applyBottomLeftMorph() {
     return;
   }
 
-  const staticFrame = await getSavedStaticFrame();
-
-  if (!staticFrame) return;
+  const staticFrame = override?.static_frame_url;
+  if (!staticFrame) {
+    console.log(`Morph: no static frame for @${handle}`);
+    return;
+  }
 
   const container = img.parentElement;
 
@@ -566,6 +568,106 @@ async function applyBottomLeftMorph() {
   staticImg.onerror = () => {
     console.error("Morph: bottom-left static frame failed to load");
   };
+}
+
+const accountSwitcherOverlays = new WeakMap();
+
+function findAccountSwitcherAvatars() {
+  return [
+    ...document.querySelectorAll(
+      'div[style*="background-image"][style*="pbs.twimg.com/profile_images"]',
+    ),
+  ]
+    .map((backgroundDiv) => {
+      const imageUrl = backgroundDiv.style.backgroundImage
+        .replace(/^url\(["']?/, "")
+        .replace(/["']?\)$/, "");
+
+      const avatarContainer = backgroundDiv.closest(
+        '[data-testid^="UserAvatar-Container-"]',
+      );
+
+      const testId = avatarContainer?.getAttribute("data-testid");
+
+      const handle = testId?.replace("UserAvatar-Container-", "").toLowerCase();
+
+      return {
+        backgroundDiv,
+        avatarContainer,
+        handle,
+        imageUrl,
+      };
+    })
+    .filter(({ backgroundDiv, handle }) => {
+      const rect = backgroundDiv.getBoundingClientRect();
+
+      return (
+        handle &&
+        !RESERVED_PATHS.has(handle) &&
+        rect.width > 0 &&
+        rect.height > 0 &&
+        !accountSwitcherOverlays.has(backgroundDiv)
+      );
+    });
+}
+
+async function applyAccountSwitcherMorph() {
+  const avatars = findAccountSwitcherAvatars();
+
+  for (const { backgroundDiv, avatarContainer, handle } of avatars) {
+    const override = await fetchOverrideForHandle(handle);
+
+    const staticFrame = override?.static_frame_url;
+
+    if (!staticFrame) {
+      console.log(`Morph: no static frame found for @${handle}`);
+      continue;
+    }
+
+    const container = avatarContainer || backgroundDiv.parentElement;
+
+    if (!container) continue;
+
+    if (getComputedStyle(container).position === "static") {
+      container.style.position = "relative";
+    }
+
+    const overlay = document.createElement("img");
+
+    overlay.src = staticFrame;
+    overlay.alt = "";
+    overlay.setAttribute("aria-hidden", "true");
+
+    Object.assign(overlay.style, {
+      position: "absolute",
+      inset: "0",
+      width: "100%",
+      height: "100%",
+      objectFit: "cover",
+      borderRadius: "50%",
+      pointerEvents: "none",
+      zIndex: "999999",
+    });
+
+    overlay.onload = () => {
+      if (!document.contains(backgroundDiv)) {
+        overlay.remove();
+        return;
+      }
+
+      backgroundDiv.style.opacity = "0";
+      container.appendChild(overlay);
+      accountSwitcherOverlays.set(backgroundDiv, overlay);
+
+      console.log(
+        `Morph: animated account switcher PFP applied for @${handle}`,
+      );
+    };
+
+    overlay.onerror = () => {
+      console.error(`Morph: account switcher GIF failed for @${handle}`);
+    };
+  }
 }
 
 let profileBannerOverlay = null;
@@ -758,6 +860,7 @@ const observer = new MutationObserver(() => {
     applyTimelineMorph();
     applyExpandedMorph();
     applyBottomLeftMorph();
+    applyAccountSwitcherMorph();
     applyProfileBannerMorph(getViewedProfileHandle());
   });
 });
@@ -772,4 +875,5 @@ applySearchMorph();
 applyTimelineMorph();
 applyExpandedMorph();
 applyBottomLeftMorph();
+applyAccountSwitcherMorph();
 applyProfileBannerMorph(getViewedProfileHandle());
